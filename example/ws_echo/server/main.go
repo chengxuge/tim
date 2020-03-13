@@ -5,7 +5,7 @@ import (
 	//"net/http"
 	//_ "net/http/pprof"
 	"porsche/tim"
-	"porsche/tim/example/ws_echo/msg"
+	"porsche/tim/example/msg"
 )
 
 func main() {
@@ -39,6 +39,9 @@ func main() {
 		a.Send(&msg.Pong{ResponseData: m.(*msg.Ping).RequestData})
 		//var i, x = 0, 0
 		//i = i / x
+	})
+	tim.MsgRoute("", mod, func(a *tim.Agent, m interface{}) {
+		a.Send(tim.WsText([]byte(m.(string))))
 	})
 	mod.Start(100, mod)
 

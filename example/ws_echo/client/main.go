@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 	"porsche/tim"
-	"porsche/tim/example/ws_echo/msg"
+	"porsche/tim/example/msg"
 	"time"
 )
 

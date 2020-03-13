@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
+	//"net/http"
 	//_ "net/http/pprof"
 	"porsche/tim"
-	"porsche/tim/example/echo/msg"
+	"porsche/tim/example/msg"
 )
 
 func main() {
