@@ -182,7 +182,7 @@ func (f *Agent) goReceive(onShake, onClose func(*Agent)) {
 								var t = reflect.TypeOf(msg)
 								if info, ok := msgMap[t.String()]; ok {
 									if mod := info.mod; mod != nil {
-										mod.ExecuteMsg(info.route, f, msg)
+										mod.ExeMsg(info.route, f, msg)
 									} else {
 										info.route(f, msg)
 									}
@@ -215,7 +215,7 @@ func (f *Agent) goReceive(onShake, onClose func(*Agent)) {
 			} else {
 				if info, ok := msgMap["[]uint8"]; ok {
 					if mod := info.mod; mod != nil {
-						mod.ExecuteMsg(info.route, f, reader.Bytes())
+						mod.ExeMsg(info.route, f, reader.Bytes())
 					} else {
 						info.route(f, reader.Bytes())
 					}

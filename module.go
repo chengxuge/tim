@@ -9,12 +9,12 @@ import (
 )
 
 type Module interface {
-	RpcCall(msg interface{}, timeout time.Duration) (interface{}, error)
-	ExecuteMsg(route MsgRouteFunc, agent *Agent, msg interface{}) bool
+	ExeRpc(msg interface{}, timeout time.Duration) (interface{}, error)
+	ExeMsg(route MsgRouteFunc, agent *Agent, msg interface{}) bool
 	TickFunc(d time.Duration, f func()) (close chan struct{})
 	AfterFunc(d time.Duration, f func()) *time.Timer
-	Start(chanSize int, mod interface{})
-	Execute(f func()) bool
+	Start(chanSize int, mod Module)
+	Exe(f func()) bool
 	Close(force bool)
 	IsClosed() bool
 }
@@ -26,10 +26,10 @@ type modInfo struct {
 }
 
 type rpcInfo struct {
-	Rpc RpcRouteFunc
-	Msg interface{}
-	Ctx context.Context
-	Ret chan interface{}
+	Call RpcRouteFunc
+	Msg  interface{}
+	Ctx  context.Context
+	Ret  chan interface{}
 }
 
 type BaseModule struct {
@@ -45,7 +45,7 @@ type BaseModule struct {
 
 func (f *BaseModule) AfterFunc(d time.Duration, f1 func()) *time.Timer {
 	return time.AfterFunc(d, func() {
-		f.Execute(f1)
+		f.Exe(f1)
 	})
 }
 
@@ -56,8 +56,7 @@ func (f *BaseModule) TickFunc(d time.Duration, f1 func()) (close chan struct{}) 
 		for {
 			select {
 			case <-c:
-				f.Execute(f1)
-
+				f.Exe(f1)
 			case <-close:
 				ticker.Stop()
 				return
@@ -67,33 +66,7 @@ func (f *BaseModule) TickFunc(d time.Duration, f1 func()) (close chan struct{}) 
 	return close
 }
 
-func (f *BaseModule) ExecuteMsg(route MsgRouteFunc, agent *Agent, msg interface{}) bool {
-	var result = false
-	f.sendMu.Lock()
-	if !f.isClosed {
-		f.msgChan <- &modInfo{
-			Call:  route,
-			Msg:   msg,
-			Agent: agent,
-		}
-		result = true
-	}
-	f.sendMu.Unlock()
-	return result
-}
-
-func (f *BaseModule) Execute(f1 func()) bool {
-	var result = false
-	f.sendMu.Lock()
-	if !f.isClosed {
-		f.msgChan <- f1
-		result = true
-	}
-	f.sendMu.Unlock()
-	return result
-}
-
-func (f *BaseModule) RpcCall(msg interface{}, timeout time.Duration) (interface{}, error) {
+func (f *BaseModule) ExeRpc(msg interface{}, timeout time.Duration) (interface{}, error) {
 	if msg == nil {
 		return nil, errors.New("msg is nil")
 	}
@@ -103,10 +76,10 @@ func (f *BaseModule) RpcCall(msg interface{}, timeout time.Duration) (interface{
 		if route, ok := rpcMap[t.String()]; ok {
 			var ctx, _ = context.WithTimeout(context.Background(), timeout)
 			var rpc = &rpcInfo{
-				Msg: msg,
-				Rpc: route,
-				Ctx: ctx,
-				Ret: make(chan interface{}),
+				Call: route,
+				Msg:  msg,
+				Ctx:  ctx,
+				Ret:  make(chan interface{}),
 			}
 			f.msgChan <- rpc
 			f.sendMu.Unlock()
@@ -115,7 +88,6 @@ func (f *BaseModule) RpcCall(msg interface{}, timeout time.Duration) (interface{
 			case <-ctx.Done():
 				close(rpc.Ret)
 				return nil, ctx.Err()
-
 			case ret := <-rpc.Ret:
 				close(rpc.Ret)
 				return ret, nil
@@ -130,7 +102,33 @@ func (f *BaseModule) RpcCall(msg interface{}, timeout time.Duration) (interface{
 	}
 }
 
-func (f *BaseModule) Start(chanSize int, mod interface{}) {
+func (f *BaseModule) ExeMsg(route MsgRouteFunc, agent *Agent, msg interface{}) bool {
+	var result = false
+	f.sendMu.Lock()
+	if !f.isClosed {
+		f.msgChan <- &modInfo{
+			Call:  route,
+			Msg:   msg,
+			Agent: agent,
+		}
+		result = true
+	}
+	f.sendMu.Unlock()
+	return result
+}
+
+func (f *BaseModule) Exe(f1 func()) bool {
+	var result = false
+	f.sendMu.Lock()
+	if !f.isClosed {
+		f.msgChan <- f1
+		result = true
+	}
+	f.sendMu.Unlock()
+	return result
+}
+
+func (f *BaseModule) Start(chanSize int, mod Module) {
 	f.sendMu.Lock()
 	defer f.sendMu.Unlock()
 	if !f.isClosed {
@@ -166,7 +164,7 @@ func (f *BaseModule) Start(chanSize int, mod interface{}) {
 					case <-v.Ctx.Done():
 						continue
 					default:
-						v.Ret <- v.Rpc(mod, v.Msg)
+						v.Ret <- v.Call(mod, v.Msg)
 					}
 				} else if f1, ok := msg.(func()); ok {
 					f1() //timer or ticker等执行的函数
@@ -195,5 +193,7 @@ func (f *BaseModule) Close(force bool) {
 }
 
 func (f *BaseModule) IsClosed() bool {
+	f.sendMu.Lock()
+	defer f.sendMu.Unlock()
 	return f.isClosed
 }

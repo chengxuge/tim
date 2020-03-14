@@ -10,11 +10,11 @@ type msgRouteInfo struct {
 }
 
 type MsgRouteFunc func(*Agent, interface{})
-type RpcRouteFunc func(interface{}, interface{}) interface{}
+type RpcRouteFunc func(Module, interface{}) interface{}
 
 var (
-	msgMap = make(map[string]*msgRouteInfo, 256)
-	rpcMap = make(map[string]RpcRouteFunc, 256)
+	msgMap = make(map[string]*msgRouteInfo, 128)
+	rpcMap = make(map[string]RpcRouteFunc, 128)
 )
 
 func MsgRoute(msg interface{}, mod Module, route MsgRouteFunc) {
