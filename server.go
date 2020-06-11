@@ -11,14 +11,15 @@ var (
 	tcpLn, tlsLn, wsLn, wssLn net.Listener
 	wgCons                    sync.WaitGroup
 	consLock                  sync.Mutex
-	consMap                   = make(map[string]net.Conn, 2048)
+	tcpCons                   = make(map[string]*net.TCPConn, 2048)
+	tlsCons                   = make(map[string]*tls.Conn, 2048)
 	ipNumMap                  = make(map[string]float64, 2048)
 )
 
 func checkConn(conn net.Conn, network string) bool {
 	consLock.Lock()
 	defer consLock.Unlock()
-	if len(consMap) >= svrCfg.MaxConnNum {
+	if (len(tcpCons) + len(tlsCons)) >= svrCfg.MaxConnNum {
 		Warn("%s超过允许连接数量,已断开: %s", network, conn.RemoteAddr())
 		_ = conn.Close()
 		return false
@@ -32,16 +33,24 @@ func checkConn(conn net.Conn, network string) bool {
 		_ = conn.Close()
 		return false
 	}
-	consMap[addrStr] = conn
+	if network == "tcp" || network == "ws" {
+		tcpCons[addrStr] = conn.(*net.TCPConn)
+	} else {
+		tlsCons[addrStr] = conn.(*tls.Conn)
+	}
 	ipNumMap[ip]++
 	return true
 }
 
-func closeConn(conn net.Conn) {
+func closeConn(conn net.Conn, network string) {
 	consLock.Lock()
 	defer consLock.Unlock()
 	var addrStr = conn.RemoteAddr().String()
-	delete(consMap, addrStr)
+	if network == "tcp" || network == "ws" {
+		delete(tcpCons, addrStr)
+	} else {
+		delete(tlsCons, addrStr)
+	}
 	var ip = addrStr[:strings.LastIndex(addrStr, ":")]
 	ipNumMap[ip]--
 	if num := ipNumMap[ip]; num == 0 {
@@ -62,13 +71,13 @@ func startTcp(packet Packet, onConn, onClose func(*Agent)) bool {
 				if err != nil {
 					break
 				}
-				if checkConn(conn, "Tcp") {
+				if checkConn(conn, "tcp") {
 					wgCons.Add(1)
 				} else {
 					continue
 				}
 				var a = NewAgent(nil, conn, packet, func(a *Agent) {
-					closeConn(conn)
+					closeConn(conn, "tcp")
 					wgCons.Done()
 					if onClose != nil {
 						onClose(a)
@@ -104,13 +113,13 @@ func startTls(packet Packet, onConn, onClose func(*Agent)) bool {
 				if err != nil {
 					break
 				}
-				if checkConn(conn, "Tls") {
+				if checkConn(conn, "tls") {
 					wgCons.Add(1)
 				} else {
 					continue
 				}
 				var a = NewAgent(nil, conn, packet, func(a *Agent) {
-					closeConn(conn)
+					closeConn(conn, "tls")
 					wgCons.Done()
 					if onClose != nil {
 						onClose(a)
@@ -139,13 +148,13 @@ func startWs(packet *WebPacket, onConn, onShake, onClose func(*Agent)) bool {
 				if err != nil {
 					break
 				}
-				if checkConn(conn, "Ws") {
+				if checkConn(conn, "ws") {
 					wgCons.Add(1)
 				} else {
 					continue
 				}
 				var a = newWs(conn, packet, onShake, func(a *Agent) {
-					closeConn(conn)
+					closeConn(conn, "ws")
 					wgCons.Done()
 					if onClose != nil {
 						onClose(a)
@@ -181,13 +190,13 @@ func startWss(packet *WebPacket, onConn, onShake, onClose func(*Agent)) bool {
 				if err != nil {
 					break
 				}
-				if checkConn(conn, "Wss") {
+				if checkConn(conn, "wss") {
 					wgCons.Add(1)
 				} else {
 					continue
 				}
 				var a = newWs(conn, packet, onShake, func(a *Agent) {
-					closeConn(conn)
+					closeConn(conn, "wss")
 					wgCons.Done()
 					if onClose != nil {
 						onClose(a)
@@ -222,13 +231,7 @@ func ListenWs(wsPacket *WebPacket, onConn, onShake, onClose func(*Agent)) {
 }
 
 func Shutdown() {
-	consLock.Lock()
-	for k, v := range consMap {
-		delete(consMap, k)
-		_ = v.Close()
-	}
-	consLock.Unlock() //不能使用defer解锁，防止死锁
-
+	Info("tim 正在停止")
 	if tcpLn != nil {
 		_ = tcpLn.Close()
 	}
@@ -241,7 +244,16 @@ func Shutdown() {
 	if wssLn != nil {
 		_ = wssLn.Close()
 	}
+	consLock.Lock() //这段放下面，防止新连接进来触发逻辑
+	for k, v := range tcpCons {
+		delete(tcpCons, k)
+		_ = v.Close()
+	}
+	for k, v := range tlsCons {
+		delete(tlsCons, k)
+		_ = v.Close()
+	}
+	consLock.Unlock() //不能使用defer解锁，防止死锁
 	wgCons.Wait()
-
 	Info("tim 已停止")
 }
