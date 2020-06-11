@@ -33,8 +33,8 @@ func (f *WebPacket) Marshal(writer *bytes.Buffer, msg interface{}) {
 	if v, ok := msg.(*WebFrame); ok {
 		writeFrame(f.MaskingKey, writer, v)
 	} else {
-		var noBodyLength = 10            //非body内容长度
 		writer.WriteString("0x12345678") //预先填充10字节的长度头
+		var noBodyLength = 10            //非body内容长度
 		if f.MaskingKey != nil {
 			writer.Write(f.MaskingKey)
 			noBodyLength += 4
@@ -90,14 +90,14 @@ func (f *WebPacket) Unmarshal(reader *bytes.Buffer, msg *interface{}) (bool, err
 		var payLength = int(payload & 0x7F)
 
 		if payLength == 126 {
-			if len(buf) >= 4 {
+			if oldLength >= 4 {
 				payLength = int(binary.BigEndian.Uint16(buf[2:]))
 				buf = buf[4:] //next 4
 			} else {
 				return false, nil
 			}
 		} else if payLength == 127 {
-			if len(buf) >= 10 {
+			if oldLength >= 10 {
 				payLength = int(binary.BigEndian.Uint64(buf[2:]))
 				buf = buf[10:] //next 10
 			} else {
@@ -162,7 +162,7 @@ func (f *WebPacket) Unmarshal(reader *bytes.Buffer, msg *interface{}) (bool, err
 					PayloadData:   payData,
 				}
 				reader.Next(oldLength - len(buf[payLength:]))
-				return true, nil //包含Opcode close
+				return true, nil //包含OpCode close
 			}
 		}
 	}

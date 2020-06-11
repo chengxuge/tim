@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	//"net/http"
-	//_ "net/http/pprof"
+	"net/http"
+	_ "net/http/pprof"
 	"porsche/tim"
 	"porsche/tim/example/msg"
 )
@@ -45,7 +45,7 @@ func main() {
 	})
 	mod.Start(100, mod)
 
-	//http.ListenAndServe(":8090", nil)
+	http.ListenAndServe(":8090", nil)
 
 	var cmd string
 	_, _ = fmt.Scanf("%s", &cmd)

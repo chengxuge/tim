@@ -2,26 +2,26 @@ package tim
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
-	"github.com/golang/protobuf/proto"
 )
 
-type PbCoder struct{}
+type JsonCoder struct{}
 
-func (f *PbCoder) Decode(reader *bytes.Buffer, bodySize int) (interface{}, error) {
+func (f *JsonCoder) Decode(reader *bytes.Buffer, bodySize int) (interface{}, error) {
 	var id, msg = decode(reader)
 	if msg != nil {
 		var buf = reader.Bytes()
 		reader.Next(bodySize)
-		return msg, proto.Unmarshal(buf[:bodySize], msg.(proto.Message)) //读取实例数据
+		return msg, json.Unmarshal(buf[:bodySize], msg) //读取实例数据
 	}
 	return nil, fmt.Errorf("message %v is no supported", id)
 }
 
-func (f *PbCoder) Encode(writer *bytes.Buffer, msg interface{}) error {
+func (f *JsonCoder) Encode(writer *bytes.Buffer, msg interface{}) error {
 	var ok, typeStr = encode(writer, msg)
 	if ok {
-		var buf, err = proto.Marshal(msg.(proto.Message))
+		var buf, err = json.Marshal(msg)
 		if err == nil {
 			writer.Write(buf) //写入实例数据
 		}

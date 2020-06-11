@@ -1,7 +1,6 @@
 package tim
 
 import (
-	"context"
 	"errors"
 	"reflect"
 	"sync"
@@ -9,27 +8,14 @@ import (
 )
 
 type Module interface {
-	ExeRpc(msg interface{}, timeout time.Duration) (interface{}, error)
-	ExeMsg(route MsgRouteFunc, agent *Agent, msg interface{}) bool
+	ExeMsg(agent *Agent, msg interface{}, route MsgRouteFunc) bool
+	ExeRpc(msg interface{}) (interface{}, error)
 	TickFunc(d time.Duration, f func()) (close chan struct{})
 	AfterFunc(d time.Duration, f func()) *time.Timer
 	Start(chanSize int, mod Module)
 	Exe(f func()) bool
 	Close(force bool)
 	IsClosed() bool
-}
-
-type modInfo struct {
-	Call  MsgRouteFunc
-	Msg   interface{}
-	Agent *Agent
-}
-
-type rpcInfo struct {
-	Call RpcRouteFunc
-	Msg  interface{}
-	Ctx  context.Context
-	Ret  chan interface{}
 }
 
 type BaseModule struct {
@@ -42,6 +28,33 @@ type BaseModule struct {
 	isClosed     bool                              //是否已关闭
 	isForceClose bool                              //立刻关闭，不等待chan处理完
 }
+
+type msgInfo struct {
+	call  MsgRouteFunc
+	msg   interface{}
+	agent *Agent
+}
+
+type rpcInfo struct {
+	call RpcRouteFunc
+	msg  interface{}
+	ret  chan interface{}
+}
+
+var (
+	msgPool = &sync.Pool{
+		New: func() interface{} {
+			return new(msgInfo)
+		},
+	}
+	rpcPool = &sync.Pool{
+		New: func() interface{} {
+			return &rpcInfo{
+				ret: make(chan interface{}),
+			}
+		},
+	}
+)
 
 func (f *BaseModule) AfterFunc(d time.Duration, f1 func()) *time.Timer {
 	return time.AfterFunc(d, func() {
@@ -66,7 +79,22 @@ func (f *BaseModule) TickFunc(d time.Duration, f1 func()) (close chan struct{}) 
 	return close
 }
 
-func (f *BaseModule) ExeRpc(msg interface{}, timeout time.Duration) (interface{}, error) {
+func (f *BaseModule) ExeMsg(agent *Agent, msg interface{}, route MsgRouteFunc) bool {
+	var result = false
+	f.sendMu.Lock()
+	if !f.isClosed {
+		var msgExe = msgPool.Get().(*msgInfo)
+		msgExe.call = route
+		msgExe.msg = msg
+		msgExe.agent = agent
+		f.msgChan <- msgExe
+		result = true
+	}
+	f.sendMu.Unlock()
+	return result
+}
+
+func (f *BaseModule) ExeRpc(msg interface{}) (interface{}, error) {
 	if msg == nil {
 		return nil, errors.New("msg is nil")
 	}
@@ -74,24 +102,15 @@ func (f *BaseModule) ExeRpc(msg interface{}, timeout time.Duration) (interface{}
 	if !f.isClosed {
 		var t = reflect.TypeOf(msg)
 		if route, ok := rpcMap[t.String()]; ok {
-			var ctx, _ = context.WithTimeout(context.Background(), timeout)
-			var rpc = &rpcInfo{
-				Call: route,
-				Msg:  msg,
-				Ctx:  ctx,
-				Ret:  make(chan interface{}),
-			}
-			f.msgChan <- rpc
+			var rpcExe = rpcPool.Get().(*rpcInfo)
+			rpcExe.call = route
+			rpcExe.msg = msg
+			f.msgChan <- rpcExe
 			f.sendMu.Unlock()
 
-			select {
-			case <-ctx.Done():
-				close(rpc.Ret)
-				return nil, ctx.Err()
-			case ret := <-rpc.Ret:
-				close(rpc.Ret)
-				return ret, nil
-			}
+			var ret = <-rpcExe.ret
+			rpcPool.Put(rpcExe)
+			return ret, nil
 		} else {
 			f.sendMu.Unlock()
 			return nil, errors.New("msg not route")
@@ -100,21 +119,6 @@ func (f *BaseModule) ExeRpc(msg interface{}, timeout time.Duration) (interface{}
 		f.sendMu.Unlock()
 		return nil, errors.New("module is closed")
 	}
-}
-
-func (f *BaseModule) ExeMsg(route MsgRouteFunc, agent *Agent, msg interface{}) bool {
-	var result = false
-	f.sendMu.Lock()
-	if !f.isClosed {
-		f.msgChan <- &modInfo{
-			Call:  route,
-			Msg:   msg,
-			Agent: agent,
-		}
-		result = true
-	}
-	f.sendMu.Unlock()
-	return result
 }
 
 func (f *BaseModule) Exe(f1 func()) bool {
@@ -157,18 +161,15 @@ func (f *BaseModule) Start(chanSize int, mod Module) {
 
 			//逻辑处理代码
 			for msg := range c {
-				if v, ok := msg.(*modInfo); ok {
-					v.Call(v.Agent, v.Msg)
+				if v, ok := msg.(*msgInfo); ok {
+					v.call(v.agent, v.msg)
+					msgPool.Put(v)
 				} else if v, ok := msg.(*rpcInfo); ok {
-					select {
-					case <-v.Ctx.Done():
-						continue
-					default:
-						v.Ret <- v.Call(mod, v.Msg)
-					}
+					v.ret <- v.call(mod, v.msg)
 				} else if f1, ok := msg.(func()); ok {
 					f1() //timer or ticker等执行的函数
 				}
+
 				if f.isClosed && f.isForceClose {
 					break //立刻关闭，不处理后续消息
 				}
@@ -187,7 +188,6 @@ func (f *BaseModule) Close(force bool) {
 	if !f.isClosed {
 		f.isClosed = true
 		f.isForceClose = force
-
 		close(f.msgChan)
 	}
 }

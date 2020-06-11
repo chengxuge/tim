@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"net"
+	"net/http"
+	_ "net/http/pprof"
 	"porsche/tim"
 	"porsche/tim/example/msg"
 	"time"
@@ -39,6 +41,8 @@ func main() {
 	//	agent.Send(&msg.Ping{RequestData:8888888})
 	//})
 	mod.Start(100, mod)
+
+	http.ListenAndServe(":8091", nil)
 
 	var cmd string
 	_, _ = fmt.Scanf("%s", &cmd)

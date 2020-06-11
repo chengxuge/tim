@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"sync"
 	"time"
-	"unsafe"
 )
 
 type Agent struct {
@@ -48,7 +47,7 @@ func newWs(conn net.Conn, packet *WebPacket, onShake, onClose func(*Agent)) *Age
 	if packet == nil {
 		Fatal("packet required")
 	}
-	if packet.MaskingKey != nil {
+	if packet != nil && packet.MaskingKey != nil {
 		Fatal("masking key nil required")
 	}
 	var agent = &Agent{
@@ -67,7 +66,7 @@ func NewWs(tags map[string]interface{}, conn net.Conn, packet *WebPacket, wsCfg 
 	if packet == nil {
 		Fatal("packet required")
 	}
-	if len(packet.MaskingKey) != 4 {
+	if packet != nil && len(packet.MaskingKey) != 4 {
 		Fatal("masking key four bytes required")
 	}
 	var agent = &Agent{
@@ -182,7 +181,7 @@ func (f *Agent) goReceive(onShake, onClose func(*Agent)) {
 								var t = reflect.TypeOf(msg)
 								if info, ok := msgMap[t.String()]; ok {
 									if mod := info.mod; mod != nil {
-										mod.ExeMsg(info.route, f, msg)
+										mod.ExeMsg(f, msg, info.route)
 									} else {
 										info.route(f, msg)
 									}
@@ -215,7 +214,7 @@ func (f *Agent) goReceive(onShake, onClose func(*Agent)) {
 			} else {
 				if info, ok := msgMap["[]uint8"]; ok {
 					if mod := info.mod; mod != nil {
-						mod.ExeMsg(info.route, f, reader.Bytes())
+						mod.ExeMsg(f, reader.Bytes(), info.route)
 					} else {
 						info.route(f, reader.Bytes())
 					}
@@ -257,23 +256,4 @@ func (f *Agent) goSend() {
 		}
 	}
 	_ = f.Conn.Close() //将待发送的消息发送完后，再关闭
-}
-
-type buffer struct {
-	buf      []byte // contents are the bytes buf[off : len(buf)]
-	off      int    // read at &buf[off], write at &buf[len(buf)]
-	lastRead int8   // last read operation, so that Unread* can work correctly.
-}
-
-func setLength(reader *bytes.Buffer, length int) {
-	var ptr = (*buffer)(unsafe.Pointer(reader))
-	ptr.buf = ptr.buf[:ptr.off+length]
-}
-
-func clearBuffer(reader *bytes.Buffer) {
-	var ptr = (*buffer)(unsafe.Pointer(reader))
-	var buf = ptr.buf[ptr.off:]
-	ptr.buf = ptr.buf[:len(buf)]
-	copy(ptr.buf, buf)
-	ptr.off = 0
 }
