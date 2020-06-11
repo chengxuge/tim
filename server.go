@@ -11,9 +11,9 @@ var (
 	tcpLn, tlsLn, wsLn, wssLn net.Listener
 	wgCons                    sync.WaitGroup
 	consLock                  sync.Mutex
-	tcpCons                   = make(map[string]*net.TCPConn, 2048)
-	tlsCons                   = make(map[string]*tls.Conn, 2048)
-	ipNumMap                  = make(map[string]float64, 2048)
+	tcpCons                   map[string]*net.TCPConn
+	tlsCons                   map[string]*tls.Conn
+	ipNumMap                  map[string]float64
 )
 
 func checkConn(conn net.Conn, network string) bool {
@@ -51,6 +51,7 @@ func closeConn(conn net.Conn, network string) {
 	} else {
 		delete(tlsCons, addrStr)
 	}
+
 	var ip = addrStr[:strings.LastIndex(addrStr, ":")]
 	ipNumMap[ip]--
 	if num := ipNumMap[ip]; num == 0 {
@@ -64,6 +65,8 @@ func startTcp(packet Packet, onConn, onClose func(*Agent)) bool {
 		tcpLn, err = net.Listen("tcp", svrCfg.TcpAddr)
 		if err != nil {
 			Fatal(err.Error())
+		} else if tcpCons == nil {
+			tcpCons = make(map[string]*net.TCPConn, 2048)
 		}
 		go func() {
 			for {
@@ -106,6 +109,8 @@ func startTls(packet Packet, onConn, onClose func(*Agent)) bool {
 		tlsLn, err = tls.Listen("tcp", svrCfg.TlsAddr, config)
 		if err != nil {
 			Fatal(err.Error())
+		} else if tlsCons == nil {
+			tlsCons = make(map[string]*tls.Conn, 2048)
 		}
 		go func() {
 			for {
@@ -141,6 +146,8 @@ func startWs(packet *WebPacket, onConn, onShake, onClose func(*Agent)) bool {
 		wsLn, err = net.Listen("tcp", svrCfg.WsAddr)
 		if err != nil {
 			Fatal(err.Error())
+		} else if tcpCons == nil {
+			tcpCons = make(map[string]*net.TCPConn, 2048)
 		}
 		go func() {
 			for {
@@ -183,6 +190,8 @@ func startWss(packet *WebPacket, onConn, onShake, onClose func(*Agent)) bool {
 		wssLn, err = tls.Listen("tcp", svrCfg.WssAddr, config)
 		if err != nil {
 			Fatal(err.Error())
+		} else if tlsCons == nil {
+			tlsCons = make(map[string]*tls.Conn, 2048)
 		}
 		go func() {
 			for {
@@ -213,6 +222,9 @@ func startWss(packet *WebPacket, onConn, onShake, onClose func(*Agent)) bool {
 }
 
 func ListenTcp(packet Packet, onConn, onClose func(*Agent)) {
+	if ipNumMap == nil {
+		ipNumMap = make(map[string]float64, 2048)
+	}
 	if startTcp(packet, onConn, onClose) {
 		Info("tcp:%s 正在监听中", svrCfg.TcpAddr)
 	}
@@ -222,6 +234,9 @@ func ListenTcp(packet Packet, onConn, onClose func(*Agent)) {
 }
 
 func ListenWs(wsPacket *WebPacket, onConn, onShake, onClose func(*Agent)) {
+	if ipNumMap == nil {
+		ipNumMap = make(map[string]float64, 2048)
+	}
 	if startWs(wsPacket, onConn, onShake, onClose) {
 		Info("ws:%s 正在监听中", svrCfg.WsAddr)
 	}
