@@ -29,7 +29,7 @@ func main() {
 	tim.MsgRoute(&msg.Pong{}, mod, func(a *tim.Agent, m interface{}) {
 		fmt.Println(m)
 	})
-	mod.TickFunc(time.Millisecond*1000, func() {
+	mod.TickFunc(time.Millisecond*100, func() {
 		agent.Send(&msg.Ping{RequestData: time.Now().UnixNano()})
 	})
 	mod.Start(100, mod)

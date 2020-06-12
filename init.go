@@ -9,7 +9,7 @@ import (
 )
 
 func initConfig() {
-	var cfgFile = "conf/server.json"
+	var cfgFile = "conf/tim.json"
 	var _, err = os.Stat(cfgFile)
 	if os.IsNotExist(err) {
 		err = os.MkdirAll(path.Dir(cfgFile), os.ModePerm)
@@ -20,7 +20,7 @@ func initConfig() {
 		if err != nil {
 			Fatal(err.Error())
 		}
-		data, err := json.Marshal(svrCfg)
+		data, err := json.Marshal(timCfg)
 		if err != nil {
 			Fatal(err.Error())
 		}
@@ -29,10 +29,10 @@ func initConfig() {
 		_, _ = out.WriteTo(file)
 		_ = file.Close()
 	} else {
-		LoadConfig(cfgFile, svrCfg)
+		LoadConfig(cfgFile, timCfg)
 	}
-	setLogFile(svrCfg.LogRoot, svrCfg.LogLevel,
-		svrCfg.LogFileMax, svrCfg.LogToStd)
+	setLogFile(timCfg.LogRoot, timCfg.LogLevel,
+		timCfg.LogFileMax, timCfg.LogToStd)
 	Info("初始化系统配置文件成功，正在启动")
 }
 
@@ -63,7 +63,7 @@ func initDefaultRoute() {
 func init() {
 	initConfig()
 	initDefaultRoute()
-	if svrCfg.LRUTimeOut > 0 && svrCfg.LRUInterval > 0 {
-		startLRUDetect(svrCfg.LRUTimeOut*time.Second, svrCfg.LRUInterval*time.Second)
+	if timCfg.LRUTimeOut > 0 && timCfg.LRUInterval > 0 {
+		startLRUDetect(timCfg.LRUTimeOut*time.Second, timCfg.LRUInterval*time.Second)
 	}
 }

@@ -19,7 +19,7 @@ var (
 func checkConn(conn net.Conn, network string) bool {
 	consLock.Lock()
 	defer consLock.Unlock()
-	if (len(tcpCons) + len(tlsCons)) >= svrCfg.MaxConnNum {
+	if (len(tcpCons) + len(tlsCons)) >= timCfg.MaxConnNum {
 		Warn("%s超过允许连接数量,已断开: %s", network, conn.RemoteAddr())
 		_ = conn.Close()
 		return false
@@ -27,8 +27,8 @@ func checkConn(conn net.Conn, network string) bool {
 	var addrStr = conn.RemoteAddr().String()
 	var ipEnd = strings.LastIndex(addrStr, ":")
 	var ip = addrStr[:ipEnd]
-	var whiteNum = svrCfg.IpWhiteList[ip]
-	if num := ipNumMap[ip]; int(num) >= svrCfg.MaxIpConnNum && num >= whiteNum {
+	var whiteNum = timCfg.IpWhiteList[ip]
+	if num := ipNumMap[ip]; int(num) >= timCfg.MaxIpConnNum && num >= whiteNum {
 		Warn("Ip超过允许连接数量,已断开: %s", conn.RemoteAddr())
 		_ = conn.Close()
 		return false
@@ -60,9 +60,9 @@ func closeConn(conn net.Conn, network string) {
 }
 
 func startTcp(packet Packet, onConn, onClose func(*Agent)) bool {
-	if svrCfg.TcpAddr != "" {
+	if timCfg.TcpAddr != "" {
 		var err error
-		tcpLn, err = net.Listen("tcp", svrCfg.TcpAddr)
+		tcpLn, err = net.Listen("tcp", timCfg.TcpAddr)
 		if err != nil {
 			Fatal(err.Error())
 		} else if tcpCons == nil {
@@ -97,16 +97,16 @@ func startTcp(packet Packet, onConn, onClose func(*Agent)) bool {
 }
 
 func startTls(packet Packet, onConn, onClose func(*Agent)) bool {
-	if svrCfg.TlsAddr != "" {
-		if svrCfg.CertFile == "" || svrCfg.KeyFile == "" {
+	if timCfg.TlsAddr != "" {
+		if timCfg.CertFile == "" || timCfg.KeyFile == "" {
 			Fatal("tls files error")
 		}
-		var cert, err = tls.LoadX509KeyPair(svrCfg.CertFile, svrCfg.KeyFile)
+		var cert, err = tls.LoadX509KeyPair(timCfg.CertFile, timCfg.KeyFile)
 		if err != nil {
 			Fatal(err.Error())
 		}
 		var config = &tls.Config{Certificates: []tls.Certificate{cert}}
-		tlsLn, err = tls.Listen("tcp", svrCfg.TlsAddr, config)
+		tlsLn, err = tls.Listen("tcp", timCfg.TlsAddr, config)
 		if err != nil {
 			Fatal(err.Error())
 		} else if tlsCons == nil {
@@ -141,9 +141,9 @@ func startTls(packet Packet, onConn, onClose func(*Agent)) bool {
 }
 
 func startWs(packet *WebPacket, onConn, onShake, onClose func(*Agent)) bool {
-	if svrCfg.WsAddr != "" {
+	if timCfg.WsAddr != "" {
 		var err error
-		wsLn, err = net.Listen("tcp", svrCfg.WsAddr)
+		wsLn, err = net.Listen("tcp", timCfg.WsAddr)
 		if err != nil {
 			Fatal(err.Error())
 		} else if tcpCons == nil {
@@ -178,16 +178,16 @@ func startWs(packet *WebPacket, onConn, onShake, onClose func(*Agent)) bool {
 }
 
 func startWss(packet *WebPacket, onConn, onShake, onClose func(*Agent)) bool {
-	if svrCfg.WssAddr != "" {
-		if svrCfg.CertFile == "" || svrCfg.KeyFile == "" {
+	if timCfg.WssAddr != "" {
+		if timCfg.CertFile == "" || timCfg.KeyFile == "" {
 			Fatal("tls files error")
 		}
-		var cert, err = tls.LoadX509KeyPair(svrCfg.CertFile, svrCfg.KeyFile)
+		var cert, err = tls.LoadX509KeyPair(timCfg.CertFile, timCfg.KeyFile)
 		if err != nil {
 			Fatal(err.Error())
 		}
 		var config = &tls.Config{Certificates: []tls.Certificate{cert}}
-		wssLn, err = tls.Listen("tcp", svrCfg.WssAddr, config)
+		wssLn, err = tls.Listen("tcp", timCfg.WssAddr, config)
 		if err != nil {
 			Fatal(err.Error())
 		} else if tlsCons == nil {
@@ -226,10 +226,10 @@ func ListenTcp(packet Packet, onConn, onClose func(*Agent)) {
 		ipNumMap = make(map[string]float64, 2048)
 	}
 	if startTcp(packet, onConn, onClose) {
-		Info("tcp:%s 正在监听中", svrCfg.TcpAddr)
+		Info("tcp:%s 正在监听中", timCfg.TcpAddr)
 	}
 	if startTls(packet, onConn, onClose) {
-		Info("tls:%s 正在监听中", svrCfg.TlsAddr)
+		Info("tls:%s 正在监听中", timCfg.TlsAddr)
 	}
 }
 
@@ -238,10 +238,10 @@ func ListenWs(wsPacket *WebPacket, onConn, onShake, onClose func(*Agent)) {
 		ipNumMap = make(map[string]float64, 2048)
 	}
 	if startWs(wsPacket, onConn, onShake, onClose) {
-		Info("ws:%s 正在监听中", svrCfg.WsAddr)
+		Info("ws:%s 正在监听中", timCfg.WsAddr)
 	}
 	if startWss(wsPacket, onConn, onShake, onClose) {
-		Info("wss:%s 正在监听中", svrCfg.WssAddr)
+		Info("wss:%s 正在监听中", timCfg.WssAddr)
 	}
 }
 

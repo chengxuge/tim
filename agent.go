@@ -94,9 +94,9 @@ func (f *Agent) run(onShake, onClose func(*Agent), tags map[string]interface{}) 
 
 func (f *Agent) validateWd(now time.Time) bool {
 	f.wdCount++
-	if f.wdCount <= svrCfg.WindowNum {
+	if f.wdCount <= timCfg.WindowNum {
 		return true //在窗口期内小于最大消息数量
-	} else if now.Sub(f.wdTime).Seconds() >= float64(svrCfg.WindowSec) {
+	} else if now.Sub(f.wdTime).Seconds() >= float64(timCfg.WindowSec) {
 		f.wdTime = now //新窗口期
 		f.wdCount = 1
 		return true //超过窗口期
@@ -130,7 +130,7 @@ func (f *Agent) Close() {
 }
 
 func (f *Agent) goReceive(onShake, onClose func(*Agent)) {
-	var buffSize = svrCfg.BuffSize //获取设置的缓冲大小
+	var buffSize = timCfg.BuffSize //获取设置的缓冲大小
 	var reader = bytes.NewBuffer(make([]byte, 0, buffSize))
 	var msg interface{}
 	for {
@@ -177,7 +177,7 @@ func (f *Agent) goReceive(onShake, onClose func(*Agent)) {
 						if err == nil {
 							//Debug("receive info:%#v", msg)
 
-							if svrCfg.WindowSec == 0 || f.validateWd(now) {
+							if timCfg.WindowSec == 0 || f.validateWd(now) {
 								var t = reflect.TypeOf(msg)
 								if info, ok := msgMap[t.String()]; ok {
 									if mod := info.mod; mod != nil {
@@ -201,8 +201,8 @@ func (f *Agent) goReceive(onShake, onClose func(*Agent)) {
 						} else {
 							reader.Reset() //已读完清理
 						}
-					} else if reader.Len() > svrCfg.MaxReadBytes {
-						Warn("to max read bytes: %v", svrCfg.MaxReadBytes) //超过允许长度
+					} else if reader.Len() > timCfg.MaxReadBytes {
+						Warn("to max read bytes: %v", timCfg.MaxReadBytes) //超过允许长度
 						reader.Reset()                                     //清除所有数据
 						f.Close()                                          //踢掉连接
 						break
@@ -239,7 +239,7 @@ func (f *Agent) goSend() {
 		_, _ = f.Conn.Write([]byte(getRequest(f.WsCfg)))
 	}
 
-	var writer = bytes.NewBuffer(make([]byte, 0, svrCfg.BuffSize))
+	var writer = bytes.NewBuffer(make([]byte, 0, timCfg.BuffSize))
 	for msg := range f.sendChan {
 		//Debug("send info:%#v", msg)
 

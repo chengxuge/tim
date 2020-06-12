@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-type serverConfig struct {
+type timConfig struct {
 	ExtendUrl    string             //扩展配置的url
 	CertFile     string             //SSL文件
 	KeyFile      string             //SSL_Key文件
@@ -30,7 +30,7 @@ type serverConfig struct {
 	LRUInterval  time.Duration      //超时检测间隔
 }
 
-var svrCfg = &serverConfig{
+var timCfg = &timConfig{
 	ExtendUrl:    "",
 	CertFile:     "",
 	KeyFile:      "",
@@ -57,7 +57,7 @@ var svrCfg = &serverConfig{
 
 var ExtendConfig map[string]interface{} //扩展配置数据
 
-func LoadConfig(file string, cfg *serverConfig) {
+func LoadConfig(file string, cfg *timConfig) {
 	var data, err = ioutil.ReadFile(file)
 	if err != nil {
 		Fatal(err.Error())
