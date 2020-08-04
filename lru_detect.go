@@ -9,7 +9,7 @@ import (
 type lruDetect struct {
 	tick     *time.Ticker
 	nodeList *list.List
-	mu       *sync.Mutex
+	mu       sync.Mutex
 }
 
 var pLruDetect *lruDetect
@@ -19,11 +19,9 @@ func startLRUDetect(timeOut, interval time.Duration) {
 		pLruDetect = &lruDetect{
 			tick:     time.NewTicker(interval),
 			nodeList: list.New(),
-			mu:       new(sync.Mutex),
 		}
 		pLruDetect.run(timeOut)
 	}
-
 	Info("timeOut: %v interval: %v", timeOut, interval)
 }
 
@@ -46,6 +44,8 @@ func (f *lruDetect) run(timeOut time.Duration) {
 
 func (f *lruDetect) update(a *Agent, now time.Time) {
 	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	var e = a.lruNode
 	if e != nil {
 		f.nodeList.MoveToFront(e)
@@ -55,15 +55,15 @@ func (f *lruDetect) update(a *Agent, now time.Time) {
 		a.lruNode = e
 		a.lastTime = now
 	}
-	f.mu.Unlock()
 }
 
 func (f *lruDetect) delete(a *Agent) {
 	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	var e = a.lruNode
 	if e != nil {
 		f.nodeList.Remove(e)
 		a.lruNode = nil
 	}
-	f.mu.Unlock()
 }

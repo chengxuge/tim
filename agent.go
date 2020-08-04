@@ -21,7 +21,7 @@ type Agent struct {
 	wdTime   time.Time              //最后窗口时间
 	wdCount  int                    //窗口期消息数量
 	isShake  bool                   //是否握手成功
-	isClosed bool                   //是否已关闭
+	closed   bool                   //是否已关闭
 }
 
 type WsConfig struct {
@@ -107,10 +107,11 @@ func (f *Agent) validateWd(now time.Time) bool {
 
 func (f *Agent) Send(msg interface{}) {
 	f.sendMu.Lock()
-	if !f.isClosed {
+	defer f.sendMu.Unlock()
+
+	if !f.closed {
 		f.sendChan <- msg
 	}
-	f.sendMu.Unlock()
 }
 
 func (f *Agent) ClearTags() {
@@ -121,12 +122,13 @@ func (f *Agent) ClearTags() {
 
 func (f *Agent) Close() {
 	f.sendMu.Lock()
-	if !f.isClosed {
+	defer f.sendMu.Unlock()
+
+	if !f.closed {
 		f.isShake = false
-		f.isClosed = true
+		f.closed = true
 		close(f.sendChan)
 	}
-	f.sendMu.Unlock()
 }
 
 func (f *Agent) goReceive(onShake, onClose func(*Agent)) {

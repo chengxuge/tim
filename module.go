@@ -25,7 +25,7 @@ type BaseModule struct {
 	OnClosed     func(mod Module)                  //模块关闭
 	msgChan      chan interface{}                  //消息队列
 	sendMu       sync.Mutex                        //同步锁
-	isClosed     bool                              //是否已关闭
+	closed       bool                              //是否已关闭
 	isForceClose bool                              //立刻关闭，不等待chan处理完
 }
 
@@ -80,9 +80,11 @@ func (f *BaseModule) TickFunc(d time.Duration, f1 func()) (close chan struct{}) 
 }
 
 func (f *BaseModule) ExeMsg(agent *Agent, msg interface{}, route MsgRouteFunc) bool {
-	var result = false
 	f.sendMu.Lock()
-	if !f.isClosed {
+	defer f.sendMu.Unlock()
+
+	var result = false
+	if !f.closed {
 		var msgExe = msgPool.Get().(*msgInfo)
 		msgExe.call = route
 		msgExe.msg = msg
@@ -90,7 +92,6 @@ func (f *BaseModule) ExeMsg(agent *Agent, msg interface{}, route MsgRouteFunc) b
 		f.msgChan <- msgExe
 		result = true
 	}
-	f.sendMu.Unlock()
 	return result
 }
 
@@ -98,44 +99,46 @@ func (f *BaseModule) ExeRpc(msg interface{}) (interface{}, error) {
 	if msg == nil {
 		return nil, errors.New("msg is nil")
 	}
+
 	f.sendMu.Lock()
-	if !f.isClosed {
+	defer f.sendMu.Unlock()
+
+	if !f.closed {
 		var t = reflect.TypeOf(msg)
 		if route, ok := rpcMap[t.String()]; ok {
 			var rpcExe = rpcPool.Get().(*rpcInfo)
 			rpcExe.call = route
 			rpcExe.msg = msg
 			f.msgChan <- rpcExe
-			f.sendMu.Unlock()
 
 			var ret = <-rpcExe.ret
 			rpcPool.Put(rpcExe)
 			return ret, nil
 		} else {
-			f.sendMu.Unlock()
 			return nil, errors.New("msg not route")
 		}
 	} else {
-		f.sendMu.Unlock()
 		return nil, errors.New("module is closed")
 	}
 }
 
 func (f *BaseModule) Exe(f1 func()) bool {
-	var result = false
 	f.sendMu.Lock()
-	if !f.isClosed {
+	defer f.sendMu.Unlock()
+
+	var result = false
+	if !f.closed {
 		f.msgChan <- f1
 		result = true
 	}
-	f.sendMu.Unlock()
 	return result
 }
 
 func (f *BaseModule) Start(chanSize int, mod Module) {
 	f.sendMu.Lock()
 	defer f.sendMu.Unlock()
-	if !f.isClosed {
+
+	if !f.closed {
 		var restart = false
 		if f.msgChan == nil {
 			f.msgChan = make(chan interface{}, chanSize)
@@ -170,7 +173,7 @@ func (f *BaseModule) Start(chanSize int, mod Module) {
 					f1() //timer or ticker等执行的函数
 				}
 
-				if f.isClosed && f.isForceClose {
+				if f.closed && f.isForceClose {
 					break //立刻关闭，不处理后续消息
 				}
 			}
@@ -185,8 +188,9 @@ func (f *BaseModule) Start(chanSize int, mod Module) {
 func (f *BaseModule) Close(force bool) {
 	f.sendMu.Lock()
 	defer f.sendMu.Unlock()
-	if !f.isClosed {
-		f.isClosed = true
+
+	if !f.closed {
+		f.closed = true
 		f.isForceClose = force
 		close(f.msgChan)
 	}
@@ -195,5 +199,6 @@ func (f *BaseModule) Close(force bool) {
 func (f *BaseModule) IsClosed() bool {
 	f.sendMu.Lock()
 	defer f.sendMu.Unlock()
-	return f.isClosed
+
+	return f.closed
 }
