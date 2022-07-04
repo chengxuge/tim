@@ -84,12 +84,12 @@ func getRndBase64Key() string {
 
 func serverWebSocket(reader *bytes.Buffer) (string, *WsConfig, bool) {
 	var buf = reader.Bytes() //获取接收到的数据
-	if idx := bytes.LastIndex(buf, httpEndOf); idx != -1 {
-		var path = getSub(buf, []byte("GET "), []byte(" HTTP/1.1\r\n"))
-		var host = getSub(buf, []byte("Host:"), []byte("\r\n"))
-		var origin = getSub(buf, []byte("Origin:"), []byte("\r\n"))
-		var protocol = getSub(buf, []byte("Sec-WebSocket-Protocol:"), []byte("\r\n"))
-		var base64Key = getSub(buf, []byte("Sec-WebSocket-Key:"), []byte("\r\n"))
+	if idx := bytes.Index(buf, httpEndOf); idx != -1 {
+		var path = getSub(buf[:idx], []byte("GET "), []byte(" HTTP/1.1\r\n"))
+		var host = getSub(buf[:idx], []byte("Host:"), []byte("\r\n"))
+		var origin = getSub(buf[:idx], []byte("Origin:"), []byte("\r\n"))
+		var protocol = getSub(buf[:idx], []byte("Sec-WebSocket-Protocol:"), []byte("\r\n"))
+		var base64Key = getSub(buf[:idx], []byte("Sec-WebSocket-Key:"), []byte("\r\n"))
 		if base64Key != nil {
 			var b64 = string(bytes.TrimSpace(base64Key))
 			var p, h, o, ptc = "", "", "", ""
@@ -122,8 +122,8 @@ func serverWebSocket(reader *bytes.Buffer) (string, *WsConfig, bool) {
 
 func clientWebSocket(reader *bytes.Buffer) bool {
 	var buf = reader.Bytes()
-	if idx := bytes.LastIndex(buf, httpEndOf); idx != -1 {
-		if bytes.Contains(buf, acceptFlags) {
+	if idx := bytes.Index(buf, httpEndOf); idx != -1 {
+		if bytes.Contains(buf[:idx], acceptFlags) {
 			reader.Next(idx + 4) //清除已读数据
 			return true
 		}
