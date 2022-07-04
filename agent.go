@@ -249,11 +249,11 @@ func (f *Agent) goSend() {
 			f.Packet.Marshal(writer, msg)
 			_, _ = writer.WriteTo(f.Conn)
 		} else {
-			switch msg.(type) {
+			switch msg := msg.(type) {
 			case []byte:
-				_, _ = f.Conn.Write(msg.([]byte))
+				_, _ = f.Conn.Write(msg)
 			case string:
-				_, _ = f.Conn.Write([]byte(msg.(string)))
+				_, _ = f.Conn.Write([]byte(msg))
 			}
 		}
 	}

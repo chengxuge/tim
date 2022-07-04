@@ -123,7 +123,7 @@ func serverWebSocket(reader *bytes.Buffer) (string, *WsConfig, bool) {
 func clientWebSocket(reader *bytes.Buffer) bool {
 	var buf = reader.Bytes()
 	if idx := bytes.LastIndex(buf, httpEndOf); idx != -1 {
-		if bytes.Index(buf, acceptFlags) != -1 {
+		if bytes.Contains(buf, acceptFlags) {
 			reader.Next(idx + 4) //清除已读数据
 			return true
 		}
