@@ -18,6 +18,18 @@ func main() {
 		a.Close()
 	})
 
+	tim.MsgRoute("", nil, func(a *tim.Agent, m interface{}) {
+		a.Send(tim.WsText([]byte(m.(string))))
+	})
+	var wsPacket = &tim.WebPacket{}
+	tim.ListenWs(wsPacket, func(a *tim.Agent) {
+
+	}, func(a *tim.Agent) {
+
+	}, func(a *tim.Agent) {
+		a.Close()
+	})
+
 	http.ListenAndServe(":8091", nil)
 
 	var cmd string
